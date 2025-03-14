@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>左右互搏入门测试</title>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; }
+        canvas { background: #f0f0f0; touch-action: none; }
+        #score { position: absolute; top: 10px; left: 10px; background: rgba(255,255,255,0.8); padding: 10px; border-radius: 8px; font-family: sans-serif; }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <div id="score">请同时用两只手绘制一个圆形和一个方形。</div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        const scoreDiv = document.getElementById('score');
+
+        let touchesData = {};
+
+        canvas.addEventListener('touchstart', handleTouch, false);
+        canvas.addEventListener('touchmove', handleTouch, false);
+        canvas.addEventListener('touchend', handleEnd, false);
+
+        function handleTouch(e) {
+            e.preventDefault();
+            for (let i = 0; i < e.touches.length; i++) {
+                const touch = e.touches[i];
+                const id = touch.identifier;
+                if (!touchesData[id]) touchesData[id] = [];
+                touchesData[id].push({ x: touch.clientX, y: touch.clientY, time: performance.now() });
+            }
+            draw();
+        }
+
+        function handleEnd(e) {
+            if (e.touches.length === 0) {
+                evaluateDrawings();
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.lineWidth = 4;
+            const colors = ["#FF4500", "#1E90FF"];
+            let index = 0;
+            for (let id in touchesData) {
+                ctx.strokeStyle = colors[index % colors.length];
+                ctx.beginPath();
+                touchesData[id].forEach((p, idx) => {
+                    if (idx === 0) ctx.moveTo(p.x, p.y);
+                    else ctx.lineTo(p.x, p.y);
+                });
+                ctx.stroke();
+                index++;
+            }
+        }
+
+        function evaluateDrawings() {
+            const ids = Object.keys(touchesData);
+            if (ids.length < 2) {
+                scoreDiv.textContent = "请同时用两只手绘制！";
+                return;
+            }
+
+            const circleScore = Math.pow(evaluateCircle(touchesData[ids[0]]) / 100, 2) * 100;
+            const squareScore = Math.pow(evaluateSquare(touchesData[ids[1]]) / 100, 2) * 100;
+            const syncScore = Math.pow(evaluateSync(touchesData[ids[0]], touchesData[ids[1]]) / 100, 2) * 100;
+
+            const finalScore = ((circleScore + squareScore + syncScore) / 3).toFixed(2);
+
+            let feedback;
+            if(finalScore < 60) feedback = "你对这门功法一窍不通，还是趁早修炼其他武功去吧";
+            else if(finalScore < 70) feedback = "你的左右互搏之术已经初窥门径，还需勤加苦练";
+            else if(finalScore < 80) feedback = "你的左右互搏之术驾轻就熟，但尚未圆满，还请继续努力";
+            else if(finalScore < 90) feedback = "你的左右互搏之术已经炉火纯青，距离成为一代宗师指日可待";
+            else if(finalScore < 100) feedback = "你的左右互搏之术已臻返璞归真，为师再没有什么可教你的了";
+            else feedback = "大师请受在下一拜！";
+
+            scoreDiv.innerHTML = `圆滑程度评分: ${circleScore.toFixed(2)}<br>
+                                  方形笔直程度评分: ${squareScore.toFixed(2)}<br>
+                                  双手同步程度评分: ${syncScore.toFixed(2)}<br><br>
+                                  综合评分: <strong>${finalScore}</strong><br><br>
+                                  评价：${feedback}`;
+        }
+
+        function evaluateCircle(points) {
+            const avgX = points.reduce((sum, p) => sum + p.x, 0) / points.length;
+            const avgY = points.reduce((sum, p) => sum + p.y, 0) / points.length;
+            const distances = points.map(p => Math.hypot(p.x - avgX, p.y - avgY));
+            const meanDist = distances.reduce((a, b) => a + b, 0) / distances.length;
+            const stdDev = Math.sqrt(distances.map(d => (d - meanDist) ** 2).reduce((a, b) => a + b) / distances.length);
+            return Math.max(0, 100 - stdDev * 2);
+        }
+
+        function evaluateSquare(points) {
+            const simplified = points.filter((_, idx) => idx % Math.floor(points.length / 4) === 0);
+            const edges = simplified.length;
+            const edgeError = Math.abs(4 - edges);
+            return Math.max(0, 100 - edgeError * 30);
+        }
+
+        function evaluateSync(track1, track2) {
+            const startDiff = Math.abs(track1[0].time - track2[0].time);
+            const endDiff = Math.abs(track1[track1.length - 1].time - track2[track2.length - 1].time);
+            const durationDiff = Math.abs((track1[track1.length - 1].time - track1[0].time) - (track2[track2.length - 1].time - track2[0].time));
+            return Math.max(0, 100 - (startDiff + endDiff + durationDiff) / 5);
+        }
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+    </script>
+</body>
+</html>
